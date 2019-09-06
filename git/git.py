@@ -1,15 +1,22 @@
 import os
+import sys
 import subprocess
+
 from utils.cd import cd
 from utils.shell_split import shell_split
 
-def _run_cmd(path, cmd):
+def _run_cmd(path, cmd, stdin=subprocess.DEVNULL, env=None):
 
     if type(cmd) == str:
         cmd = shell_split(cmd)
 
     with cd(path):
-        res = subprocess.run(cmd, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, check=True, text=True)
+        res = subprocess.run(cmd, env=env, stdin=stdin, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        if res.returncode != 0:
+            print(sys.stderr, res.stdout)
+            print('--------------------')
+            print(sys.stderr, res.stderr)
+            res.check_returncode() # raise
 
         return res.stdout
 
@@ -52,6 +59,9 @@ class Git(object):
         self.user = user
         self.password = password
 
+    def _auth_remote(self, remote):
+        return f'https://{self.user}:{self.password}@{remote.split("https://")[1]}'
+
     def status(self):
         # Get porcelained status
         status = _run_cmd(self.path, 'git status --porcelain').splitlines()
@@ -68,3 +78,11 @@ class Git(object):
 
     def get_current_branch(self):
         return _run_cmd(self.path, 'git symbolic-ref --short HEAD').strip()
+
+    def push(self, remote, branch):
+        auth_remote = self._auth_remote(remote)
+        return _run_cmd(self.path, f'git push {auth_remote} {branch}')
+
+    def pull(self, remote, branch, rebase=False):
+        auth_remote = self._auth_remote(remote)
+        return _run_cmd(self.path, f'git pull{" --rebase" if rebase else ""} {auth_remote} {branch}')
