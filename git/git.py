@@ -1,8 +1,13 @@
 import os
 import subprocess
 from utils.cd import cd
+from utils.shell_split import shell_split
 
 def _run_cmd(path, cmd):
+
+    if type(cmd) == str:
+        cmd = shell_split(cmd)
+
     with cd(path):
         res = subprocess.run(cmd, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, check=True, text=True)
 
@@ -49,7 +54,14 @@ class Git(object):
 
     def status(self):
         # Get porcelained status
-        status = _run_cmd(self.path, 'git status --porcelain'.split(' ')).splitlines()
+        status = _run_cmd(self.path, 'git status --porcelain').splitlines()
         # Parse status
         return Status(status)
 
+    def commit(self, commit_message):
+        res = _run_cmd(self.path, 'git commit -m "{}"'.format(commit_message.replace('"', '\\"')))
+
+        return res
+
+    def add_all(self):
+        res = _run_cmd(self.path, 'git add -A')
