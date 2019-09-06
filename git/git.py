@@ -59,9 +59,12 @@ class Git(object):
         return Status(status)
 
     def commit(self, commit_message):
+        if self.status().is_clean():
+            return
         res = _run_cmd(self.path, 'git commit -m "{}"'.format(commit_message.replace('"', '\\"')))
-
-        return res
 
     def add_all(self):
         res = _run_cmd(self.path, 'git add -A')
+
+    def get_current_branch(self):
+        return _run_cmd(self.path, 'git symbolic-ref --short HEAD').strip()
