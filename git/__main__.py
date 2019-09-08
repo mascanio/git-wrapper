@@ -1,8 +1,8 @@
 from os import environ as env
-from git.git import Git
+import git
 
 def run():
-    git = Git('./test_folder', 'mascanio', env['token'])
+    git = git.Git('./test_folder', 'https://github.com/mascanio/test-priv.git', 'mascanio', env['token'])
     status = git.status()
 
     print(status)
@@ -18,9 +18,10 @@ def run():
 
     print(git.get_current_branch())
 
-    # print(git.push('https://github.com/mascanio/test_wrapper.git', git.get_current_branch()))
-    print(git.pull('https://github.com/mascanio/test_wrapper.git', 'dev', rebase=True))
-    
+    # print(git.push(git.get_current_branch()))
+    # print(git.pull('dev', rebase=True))
+    git.rebase_stash('master')
+
     status = git.status()
     print(status)
     print(status.is_clean())

@@ -5,6 +5,36 @@ import subprocess
 from utils.cd import cd
 from utils.shell_split import shell_split
 
+class Error(Exception):
+    def __init__(self, message):
+        Exception.__init__(self, message)
+
+class GitError(Error):
+
+    def __init__(self, stdout, stderr):
+        self.stdout = stdout
+        self.stderr = stderr
+        self.message = f"""Git exception
+STDOUT:
+{stdout}
+-------------------------------------------------------------------------------
+STDERR:
+{stderr}
+"""
+        Error.__init__(self, self.message)
+
+class AuthenticationError(Error):
+    def __init__(self):
+        self.message = 'Git: invalid username or password.'
+        Exception.__init__(self, self.message)
+
+
+def _build_error(stdout, stderr):
+    if 'remote: Invalid username or password.' in stderr.splitlines()[0]:
+        return AuthenticationError()
+    else:
+        return GitError(stdout, stderr)
+
 def _run_cmd(path, cmd, stdin=subprocess.DEVNULL, env=None):
 
     if type(cmd) == str:
@@ -13,10 +43,7 @@ def _run_cmd(path, cmd, stdin=subprocess.DEVNULL, env=None):
     with cd(path):
         res = subprocess.run(cmd, env=env, stdin=stdin, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
         if res.returncode != 0:
-            print(sys.stderr, res.stdout)
-            print('--------------------')
-            print(sys.stderr, res.stderr)
-            res.check_returncode() # raise
+            raise _build_error(res.stdout, res.stderr)
 
         return res.stdout
 
@@ -54,13 +81,15 @@ class Status(object):
 
 class Git(object):
 
-    def __init__(self, path, user=None, password=None):
+    def __init__(self, path, remote, user=None, password=None):
         self.path = path
         self.user = user
         self.password = password
+        self.remote = remote
+        self.auth_remote = self._auth_remote()
 
-    def _auth_remote(self, remote):
-        return f'https://{self.user}:{self.password}@{remote.split("https://")[1]}'
+    def _auth_remote(self):
+        return f'https://{self.user}:{self.password}@{self.remote.split("https://")[1]}'
 
     def status(self):
         # Get porcelained status
@@ -79,10 +108,12 @@ class Git(object):
     def get_current_branch(self):
         return _run_cmd(self.path, 'git symbolic-ref --short HEAD').strip()
 
-    def push(self, remote, branch):
-        auth_remote = self._auth_remote(remote)
-        return _run_cmd(self.path, f'git push {auth_remote} {branch}')
+    def push(self, branch):
+        return _run_cmd(self.path, f'git push {self.auth_remote} {branch}')
 
-    def pull(self, remote, branch, rebase=False):
-        auth_remote = self._auth_remote(remote)
-        return _run_cmd(self.path, f'git pull{" --rebase" if rebase else ""} {auth_remote} {branch}')
+    def pull(self, branch, rebase=False):
+        return _run_cmd(self.path, f'git pull{" --rebase" if rebase else ""} {self.auth_remote} {branch}')
+
+    def rebase_stash(self, branch):
+        return _run_cmd(self.path, f'git pull --rebase --autostash {self.auth_remote} {branch}')
+
